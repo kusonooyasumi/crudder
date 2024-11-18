@@ -1,3 +1,6 @@
+![image](https://github.com/user-attachments/assets/e1ad5e8e-4c3b-4fca-b701-7d502b53c237)
+
+
 # API Auth Testing Tool written in GO
 
 crudder is a simple tool written in go for the sole purpose of testing API endpoints for authentication as well as authorization.
