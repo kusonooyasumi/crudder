@@ -10,6 +10,17 @@ import (
 	"sync"
 )
 
+const banner = `
+  /$$$$$$  /$$$$$$$  /$$   /$$ /$$$$$$$        /$$                    
+ /$$__  $$| $$__  $$| $$  | $$| $$__  $$      | $$                    
+| $$  \__/| $$  \ $$| $$  | $$| $$  \ $$  /$$$$$$$  /$$$$$$   /$$$$$$ 
+| $$      | $$$$$$$/| $$  | $$| $$  | $$ /$$__  $$ /$$__  $$ /$$__  $$
+| $$      | $$__  $$| $$  | $$| $$  | $$| $$  | $$| $$$$$$$$| $$  \__/
+| $$    $$| $$  \ $$| $$  | $$| $$  | $$| $$  | $$| $$_____/| $$      
+|  $$$$$$/| $$  | $$|  $$$$$$/| $$$$$$$/|  $$$$$$$|  $$$$$$$| $$      
+ \______/ |__/  |__/ \______/ |_______/  \_______/ \_______/|__/       by oyasumi(@kusonooyasumi)
+`
+
 // Result struct to store request results
 type Result struct {
 	endpoint    string
@@ -145,6 +156,8 @@ func getSubdomainsFromFile(filePath string) ([]string, error) {
 }
 
 func main() {
+	fmt.Println(banner)
+
 	// Define command-line flags
 	methods := flag.String("m", "", "HTTP methods (c=POST, r=GET, u=PUT, d=DELETE)")
 	subdomainsInput := flag.String("s", "", "Comma-separated list of subdomains")
