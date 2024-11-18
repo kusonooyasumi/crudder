@@ -15,7 +15,7 @@ crudder is a simple tool written in go for the sole purpose of testing API endpo
 
 `-e` - list of endpoints to test
 
-` -r` - number of concurrent requests
+`-r` - number of concurrent requests
 
 optional: 
 
