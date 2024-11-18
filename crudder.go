@@ -6,10 +6,18 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 )
+
+// Result struct to store request results
+type Result struct {
+	endpoint    string
+	subdomain   string
+	method      string
+	statusCode  int
+	error       string
+}
 
 func ensureProtocol(url string) string {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
@@ -18,7 +26,7 @@ func ensureProtocol(url string) string {
 	return url
 }
 
-func makeRequest(method, baseUrl, endpoint string, outputFile *os.File, wg *sync.WaitGroup) {
+func makeRequest(method, baseUrl, endpoint string, resultChan chan<- Result, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// Ensure baseUrl has protocol and doesn't end with slash
@@ -32,43 +40,69 @@ func makeRequest(method, baseUrl, endpoint string, outputFile *os.File, wg *sync
 	client := &http.Client{}
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
-		handleError(fmt.Sprintf("Failed to create request for %s: %v", url, err), outputFile)
+		resultChan <- Result{
+			endpoint:  endpoint,
+			subdomain: baseUrl,
+			method:    method,
+			error:     fmt.Sprintf("Failed to create request: %v", err),
+		}
 		return
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		handleError(fmt.Sprintf("Failed to make %s request to %s: %v", method, url, err), outputFile)
+		resultChan <- Result{
+			endpoint:  endpoint,
+			subdomain: baseUrl,
+			method:    method,
+			error:     fmt.Sprintf("Request failed: %v", err),
+		}
 		return
 	}
 	defer resp.Body.Close()
 
-	result := fmt.Sprintf("%s request to %s: %d", method, url, resp.StatusCode)
-	result = removePattern(result)
-
-	fmt.Println(result)
-	if outputFile != nil {
-		writeToFile(result, outputFile)
+	resultChan <- Result{
+		endpoint:   endpoint,
+		subdomain:  baseUrl,
+		method:     method,
+		statusCode: resp.StatusCode,
 	}
 }
 
-func handleError(message string, outputFile *os.File) {
-	message = removePattern(message)
-	fmt.Println(message)
-	if outputFile != nil {
-		writeToFile(message, outputFile)
+func writeResults(results []Result, outputFile *os.File) {
+	// Group results by endpoint
+	endpointMap := make(map[string][]Result)
+	for _, result := range results {
+		endpointMap[result.endpoint] = append(endpointMap[result.endpoint], result)
 	}
-}
 
-func removePattern(input string) string {
-	re := regexp.MustCompile(`request to .*:`)
-	return re.ReplaceAllString(input, "")
-}
+	// Write results to both console and file
+	for endpoint, endpointResults := range endpointMap {
+		output := fmt.Sprintf("\nEndpoint: %s\n", endpoint)
+		output += "----------------------------------------\n"
+		
+		// Group by subdomain
+		subdomainMap := make(map[string][]Result)
+		for _, result := range endpointResults {
+			subdomainMap[result.subdomain] = append(subdomainMap[result.subdomain], result)
+		}
 
-func writeToFile(data string, outputFile *os.File) {
-	_, err := outputFile.WriteString(data + "\n")
-	if err != nil {
-		fmt.Println("Failed to write to file:", err)
+		for subdomain, subResults := range subdomainMap {
+			output += fmt.Sprintf("  Subdomain: %s\n", subdomain)
+			for _, result := range subResults {
+				if result.error != "" {
+					output += fmt.Sprintf("    %s: Error - %s\n", result.method, result.error)
+				} else {
+					output += fmt.Sprintf("    %s: %d\n", result.method, result.statusCode)
+				}
+			}
+		}
+		output += "----------------------------------------\n"
+
+		fmt.Print(output)
+		if outputFile != nil {
+			outputFile.WriteString(output)
+		}
 	}
 }
 
@@ -202,8 +236,9 @@ func main() {
 		defer outputFilePtr.Close()
 	}
 
-	// Create a WaitGroup to synchronize the concurrent requests
+	// Create a WaitGroup and result channel to collect results
 	var wg sync.WaitGroup
+	resultChan := make(chan Result, len(subdomains)*len(endpoints)*len(selectedMethods))
 	semaphore := make(chan struct{}, *maxConcurrent)
 
 	// Calculate total number of requests
@@ -219,12 +254,24 @@ func main() {
 				defer func() { <-semaphore }()
 				fmt.Printf("Testing: %s%s\n", subdomain, endpoint)
 				for _, method := range selectedMethods {
-					makeRequest(method, subdomain, endpoint, outputFilePtr, &wg)
+					makeRequest(method, subdomain, endpoint, resultChan, &wg)
 				}
 			}(subdomain, endpoint)
 		}
 	}
 
-	// Wait for all goroutines to finish
-	wg.Wait()
+	// Start a goroutine to close the result channel when all requests are done
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect all results
+	var results []Result
+	for result := range resultChan {
+		results = append(results, result)
+	}
+
+	// Write organized results to output
+	writeResults(results, outputFilePtr)
 }
