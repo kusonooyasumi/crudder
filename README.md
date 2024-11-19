@@ -1,5 +1,4 @@
-![image](https://github.com/user-attachments/assets/bcad1800-b056-4fee-9743-c88c21602253)
-
+![image](https://github.com/user-attachments/assets/0474d763-e612-42e4-9210-63b5fbdb7c4e)
 
 # API Auth Testing Tool written in GO
 
